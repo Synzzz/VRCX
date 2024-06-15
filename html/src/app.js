@@ -2669,6 +2669,7 @@ speechSynthesis.getVoices();
         /**
          * @type {{ shortName?: string }}
          */
+        console.log(`Self invite to instance ${JSON.stringify(instance)} with instance.worldId = ${instance.worldId} and instance.instanceId ${instance.instanceId}`);
         var params = {};
         if (instance.shortName) {
             params.shortName = instance.shortName;
@@ -2681,6 +2682,8 @@ speechSynthesis.getVoices();
             }
         )
             .then((json) => {
+                console.log("Invite successful. Clearing subscriptions.");
+                groupSubscriptions = {};
                 var args = {
                     json,
                     instance,
@@ -30352,6 +30355,12 @@ speechSynthesis.getVoices();
             case 'Invite To Group':
                 this.showInviteGroupDialog(D.id, '');
                 break;
+            case 'Subscribe to Group instances':
+                this.setInstanceSubscription(D.id, true);
+                break;
+            case 'Unsubscribe to Group instances':
+                this.setInstanceSubscription(D.id, false);
+                break;
         }
     };
 
@@ -30464,6 +30473,68 @@ speechSynthesis.getVoices();
             return args;
         });
     };
+    
+    let groupSubscriptions = {};
+    
+    $app.methods.isGroupSubscribed = function(groupId) {
+    console.log(`Checking if ${groupId} is in groupSubscriptions ${JSON.stringify(groupSubscriptions)} result: ${groupSubscriptions.hasOwnProperty(groupId)}`);
+    return groupSubscriptions.hasOwnProperty(groupId);
+    }
+
+    $app.methods.setInstanceSubscription = function (groupId, subscribe) {
+    console.log("setInstanceSubscription start for " + groupId + " with " + subscribe);
+    if (subscribe) {
+        if (!groupSubscriptions[groupId]) {
+            const intervalId = setInterval(() => pollGroupInstances(groupId, $app), 3000); 
+        const timeoutId = setTimeout(() => {
+            clearInterval(intervalId);
+            delete groupSubscriptions[groupId];
+            console.log(`Timeout reached. Cleared subscription for group ${groupId}`);
+        }, 3600000 / 2); 
+
+        groupSubscriptions[groupId] = { intervalId, timeoutId };
+        console.log(`Started polling for group ${groupId}`);
+        }
+    } else {
+        if (groupSubscriptions[groupId]) {
+        clearInterval(groupSubscriptions[groupId].intervalId);
+        clearTimeout(groupSubscriptions[groupId].timeoutId);
+        delete groupSubscriptions[groupId];
+        console.log(`Stopped polling for group ${groupId}`);
+        }
+    }
+    }
+
+    async function pollGroupInstances(groupId, $app) {  // Pass $app as an argument
+        if (!groupSubscriptions[groupId]) return; 
+        try {
+        console.log("Polling for group " + groupId);
+        const { json } = await API.getGroupInstances({ groupId });
+        console.log(`Fetched instances for group ${groupId}: ${JSON.stringify(json)}`);
+        // Stop polling if an instance exists and we've sent a self-invite
+        if (json.instances.length > 0) {
+            await sendSelfInvite(json.instances[0]); 
+            $app.methods.setInstanceSubscription(groupId, false); // Use the passed $app object
+          } 
+        } catch (error) {
+          console.error(`Failed to fetch instances for group ${groupId}:`, error);
+        }
+      }
+
+    function sendSelfInvite(instance) {
+    if (!instance || !instance.id || !instance.groupId) {
+        console.error(`Invalid instance object: ${JSON.stringify(instance)}`);
+        return;
+    }
+    
+    console.log(`Sending self-invite to instance ${instance.id} for group ${instance.groupId}`);
+    $app.selfInvite(instance.id, null)
+    .then(response => {
+        console.log(`Successfully sent self-invite to instance ${instance.id} for group ${instance.groupId}`);
+    }).catch(error => {
+        console.error(`Failed to send self-invite to instance ${instance.id}:`, error);
+    });
+    }
 
     $app.methods.sendNotificationResponse = function (
         notificationId,

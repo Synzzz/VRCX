@@ -835,6 +835,8 @@
                 "unsubscribe": "Unsubscribe From Announcements",
                 "subscribe": "Subscribe To Announcements",
                 "invite_to_group": "Invite To Group",
+                "subscribeGroup": "Subscribe To Group Instances",
+                "unsubscribeGroup": "Unsubscribe To Group Instances",
                 "visibility_everyone": "Visibility Everyone",
                 "visibility_friends": "Visibility Friends",
                 "visibility_hidden": "Visibility Hidden",
